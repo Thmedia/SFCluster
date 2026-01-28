@@ -1,0 +1,683 @@
+"""
+Content Clustering Web Application
+==================================
+A Flask web app that clusters content from Screaming Frog exports
+using OpenAI embeddings and k-means clustering.
+"""
+
+import os# Render Blueprint specification
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: content-clusterflask==3.0.0
+gunicorn==21.2.0# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads and results (temporary files)
+/tmp/
+*.csv
+
+# Logs
+*.log
+
+openai==1.12.0
+pandas==2.1.4
+numpy==1.26.3
+scikit-learn==1.4.0
+python-dotenv==1.0.0
+werkzeug==3.0.1
+
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.7"
+      - key: SECRET_KEY
+        generateValue: true
+    healthCheckPath: /health
+    plan: free
+
+import io
+import json
+import time# Content Cluster
+
+A web application that transforms Screaming Frog exports into semantic content clusters using AI embeddings.
+
+![Content Cluster](https://img.shields.io/badge/SEO-Tool-22d3ee) ![Python](https://img.shields.io/badge/Python-3.11-blue) ![Flask](https://img.shields.io/badge/Flask-3.0-green)
+
+## Features
+
+- **Drag & Drop Upload**: Easy CSV file upload from Screaming Frog exports
+- **Auto-Detection**: Automatically detects common SF column names
+- **Semantic Clustering**: Uses OpenAI embeddings for accurate content grouping
+- **Auto-Naming**: AI-generated descriptive names for each cluster
+- **Interactive Visualization**: Scatter plot showing cluster relationships
+- **CSV Export**: Download results with cluster assignments
+
+---
+
+## Quick Start (Local Development)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/content-cluster.git
+cd content-cluster
+```
+
+### 2. Create virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run the app
+
+```bash
+python app.py
+```
+
+Visit `http://localhost:5000` in your browser.
+
+---
+
+## Deploy to Render
+
+### Step 1: Push to GitHub
+
+1. Create a new repository on GitHub
+2. Push your code:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/content-cluster.git
+git push -u origin main
+```
+
+### Step 2: Connect to Render
+
+1. Go to [render.com](https://render.com) and sign up/log in
+2. Click **New +** → **Web Service**
+3. Connect your GitHub account if not already connected
+4. Select your `content-cluster` repository
+
+### Step 3: Configure the service
+
+Render will auto-detect settings from `render.yaml`, but verify:
+
+| Setting | Value |
+|---------|-------|
+| **Name** | content-cluster |
+| **Runtime** | Python |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `gunicorn app:app` |
+| **Plan** | Free |
+
+### Step 4: Deploy
+
+1. Click **Create Web Service**
+2. Wait for the build to complete (2-3 minutes)
+3. Your app will be live at `https://content-cluster.onrender.com`
+
+---
+
+## Usage
+
+### 1. Export from Screaming Frog
+
+1. Open Screaming Frog
+2. Crawl your site
+3. Go to **Internal** → **HTML**
+4. Click **Export** → Save as CSV
+
+### 2. Upload & Configure
+
+1. Drag your CSV into the app
+2. Enter your OpenAI API key
+3. Verify detected columns (URL, Title, H1, Meta Description)
+4. Optionally set a specific number of clusters
+
+### 3. Generate Clusters
+
+1. Click **Generate Clusters**
+2. Wait for processing (1-3 minutes depending on size)
+3. Explore the visualization and cluster breakdown
+4. Download the CSV with cluster assignments
+
+---
+
+## Embedding as a Website Plugin
+
+To embed this as a plugin on your website:
+
+### Option 1: iFrame Embed
+
+```html
+<iframe 
+  src="https://your-app.onrender.com" 
+  width="100%" 
+  height="800" 
+  frameborder="0"
+  style="border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
+</iframe>
+```
+
+### Option 2: Link Button
+
+```html
+<a href="https://your-app.onrender.com" 
+   target="_blank" 
+   class="cluster-tool-btn">
+  Open Content Cluster Tool
+</a>
+
+<style>
+.cluster-tool-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #22d3ee, #a855f7);
+  color: #000;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+}
+</style>
+```
+
+### Option 3: WordPress Shortcode
+
+Create a simple plugin:
+
+```php
+<?php
+/*
+Plugin Name: Content Cluster Embed
+*/
+
+function content_cluster_shortcode($atts) {
+    $atts = shortcode_atts(array(
+        'height' => '800'
+    ), $atts);
+    
+    return '<iframe src="https://your-app.onrender.com" 
+            width="100%" 
+            height="' . esc_attr($atts['height']) . '" 
+            frameborder="0"></iframe>';
+}
+add_shortcode('content_cluster', 'content_cluster_shortcode');
+```
+
+Usage: `[content_cluster height="900"]`
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SECRET_KEY` | Flask session secret | Auto-generated on Render |
+| `PORT` | Server port | Default: 5000 |
+
+### Customization
+
+Edit `templates/index.html` to:
+- Change branding/colors
+- Modify the UI layout
+- Add your logo
+
+Edit `app.py` to:
+- Change clustering parameters
+- Modify embedding model
+- Adjust cluster naming prompts
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Main application UI |
+| `/api/upload` | POST | Upload CSV file |
+| `/api/cluster` | POST | Run clustering |
+| `/api/download/<id>` | GET | Download results |
+| `/health` | GET | Health check |
+
+---
+
+## Tech Stack
+
+- **Backend**: Flask, Python 3.11
+- **AI**: OpenAI text-embedding-3-small, GPT-4o-mini
+- **ML**: scikit-learn (K-means, PCA)
+- **Frontend**: Vanilla JS, Chart.js
+- **Hosting**: Render
+
+---
+
+## Cost Estimation
+
+OpenAI API costs (approximate):
+- **Embeddings**: ~$0.02 per 1M tokens (~$0.001 for 500 pages)
+- **Cluster naming**: ~$0.01 per run (GPT-4o-mini)
+
+Total: **< $0.05 per clustering run** for most sites
+
+---
+
+## License
+
+MIT License - Feel free to use, modify, and distribute.
+
+---
+
+## Support
+
+Questions? Issues? Open a GitHub issue or reach out.
+
+import uuid
+from datetime import datetime
+from flask import Flask, render_template, request, jsonify, send_file, session
+from werkzeug.utils import secure_filename
+import pandas as pd
+import numpy as np
+from openai import OpenAI
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
+from collections import Counter
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+
+# Configuration
+UPLOAD_FOLDER = '/tmp/uploads'
+RESULTS_FOLDER = '/tmp/results'
+ALLOWED_EXTENSIONS = {'csv'}
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULTS_FOLDER, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def detect_columns(df):
+    """Auto-detect common Screaming Frog column names."""
+    column_mapping = {
+        'url': None,
+        'title': None,
+        'h1': None,
+        'meta_description': None
+    }
+    
+    # Common variations
+    url_patterns = ['address', 'url', 'page url', 'page']
+    title_patterns = ['title 1', 'title', 'page title', 'meta title']
+    h1_patterns = ['h1-1', 'h1', 'heading 1', 'h1 1']
+    meta_patterns = ['meta description 1', 'meta description', 'description']
+    
+    columns_lower = {col.lower(): col for col in df.columns}
+    
+    for pattern in url_patterns:
+        if pattern in columns_lower:
+            column_mapping['url'] = columns_lower[pattern]
+            break
+    
+    for pattern in title_patterns:
+        if pattern in columns_lower:
+            column_mapping['title'] = columns_lower[pattern]
+            break
+    
+    for pattern in h1_patterns:
+        if pattern in columns_lower:
+            column_mapping['h1'] = columns_lower[pattern]
+            break
+    
+    for pattern in meta_patterns:
+        if pattern in columns_lower:
+            column_mapping['meta_description'] = columns_lower[pattern]
+            break
+    
+    return column_mapping
+
+
+def prepare_text_for_embedding(df, column_mapping):
+    """Combine text columns for embedding."""
+    text_parts = []
+    
+    for key in ['url', 'title', 'h1', 'meta_description']:
+        col = column_mapping.get(key)
+        if col and col in df.columns:
+            text_parts.append(df[col].fillna('').astype(str))
+    
+    if not text_parts:
+        raise ValueError("No valid text columns found for clustering")
+    
+    combined = text_parts[0]
+    for part in text_parts[1:]:
+        combined = combined + ' ' + part
+    
+    return combined.str.strip()
+
+
+def get_embeddings(texts, api_key):
+    """Get OpenAI embeddings for texts."""
+    client = OpenAI(api_key=api_key)
+    embeddings = []
+    batch_size = 100
+    
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=batch
+        )
+        
+        batch_embeddings = [item.embedding for item in response.data]
+        embeddings.extend(batch_embeddings)
+        
+        time.sleep(0.3)  # Rate limiting
+    
+    return np.array(embeddings)
+
+
+def find_optimal_clusters(embeddings, min_k=3, max_k=15):
+    """Find optimal cluster count using silhouette score."""
+    best_score = -1
+    best_k = min_k
+    
+    max_k = min(max_k, len(embeddings) - 1)
+    
+    for k in range(min_k, max_k + 1):
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(embeddings)
+        score = silhouette_score(embeddings, labels)
+        
+        if score > best_score:
+            best_score = score
+            best_k = k
+    
+    return best_k
+
+
+def generate_cluster_names(df, cluster_col, title_col, url_col, api_key):
+    """Use GPT to generate cluster names."""
+    client = OpenAI(api_key=api_key)
+    cluster_names = {}
+    
+    for cluster_id in sorted(df[cluster_col].unique()):
+        cluster_df = df[df[cluster_col] == cluster_id].head(10)
+        
+        samples = []
+        for _, row in cluster_df.iterrows():
+            title = row.get(title_col, '') if title_col else ''
+            url = row.get(url_col, '') if url_col else ''
+            samples.append(f"- {title} ({url})")
+        
+        sample_text = "\n".join(samples)
+        
+        prompt = f"""Based on these page samples, suggest a short descriptive name (2-4 words) for this content group.
+Return ONLY the cluster name.
+
+Pages:
+{sample_text}
+
+Cluster name:"""
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=20,
+                temperature=0.3
+            )
+            cluster_names[cluster_id] = response.choices[0].message.content.strip()
+        except:
+            cluster_names[cluster_id] = f"Cluster {cluster_id + 1}"
+    
+    return cluster_names
+
+
+def create_visualization_data(df, embeddings):
+    """Create 2D coordinates for visualization."""
+    pca = PCA(n_components=2)
+    coords = pca.fit_transform(embeddings)
+    
+    return coords[:, 0].tolist(), coords[:, 1].tolist()
+
+
+# =============================================================================
+# ROUTES
+# =============================================================================
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Handle CSV file upload and return column detection."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Only CSV files are allowed'}), 400
+    
+    try:
+        # Generate unique filename
+        file_id = str(uuid.uuid4())
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_id}_{filename}")
+        file.save(filepath)
+        
+        # Read and analyze CSV
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                df = pd.read_csv(filepath, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        # Detect columns
+        detected = detect_columns(df)
+        
+        return jsonify({
+            'file_id': file_id,
+            'filename': filename,
+            'row_count': len(df),
+            'columns': list(df.columns),
+            'detected_columns': detected
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cluster', methods=['POST'])
+def cluster_content():
+    """Perform clustering on uploaded file."""
+    data = request.json
+    
+    file_id = data.get('file_id')
+    filename = data.get('filename')
+    api_key = data.get('api_key')
+    column_mapping = data.get('column_mapping')
+    num_clusters = data.get('num_clusters')  # None for auto
+    
+    if not all([file_id, filename, api_key, column_mapping]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_id}_{filename}")
+    
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found. Please upload again.'}), 404
+    
+    try:
+        # Load data
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                df = pd.read_csv(filepath, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        # Prepare text
+        df['combined_text'] = prepare_text_for_embedding(df, column_mapping)
+        df = df[df['combined_text'].str.len() > 10].reset_index(drop=True)
+        
+        if len(df) < 5:
+            return jsonify({'error': 'Not enough content to cluster (minimum 5 pages)'}), 400
+        
+        # Get embeddings
+        embeddings = get_embeddings(df['combined_text'].tolist(), api_key)
+        
+        # Determine clusters
+        if num_clusters and num_clusters > 0:
+            k = min(num_clusters, len(df) - 1)
+        else:
+            k = find_optimal_clusters(embeddings)
+        
+        # Cluster
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        df['cluster'] = kmeans.fit_predict(embeddings)
+        
+        # Generate names
+        url_col = column_mapping.get('url')
+        title_col = column_mapping.get('title')
+        cluster_names = generate_cluster_names(df, 'cluster', title_col, url_col, api_key)
+        df['cluster_name'] = df['cluster'].map(cluster_names)
+        
+        # Create visualization coordinates
+        x_coords, y_coords = create_visualization_data(df, embeddings)
+        df['viz_x'] = x_coords
+        df['viz_y'] = y_coords
+        
+        # Save results
+        result_id = str(uuid.uuid4())
+        result_path = os.path.join(RESULTS_FOLDER, f"{result_id}.csv")
+        
+        # Select output columns
+        output_cols = ['cluster', 'cluster_name', 'viz_x', 'viz_y']
+        for key in ['url', 'title', 'h1', 'meta_description']:
+            col = column_mapping.get(key)
+            if col and col in df.columns:
+                output_cols.insert(0, col)
+        
+        df[output_cols].to_csv(result_path, index=False)
+        
+        # Prepare response data
+        clusters_summary = []
+        for cluster_id in sorted(df['cluster'].unique()):
+            cluster_df = df[df['cluster'] == cluster_id]
+            clusters_summary.append({
+                'id': int(cluster_id),
+                'name': cluster_names[cluster_id],
+                'count': len(cluster_df),
+                'samples': cluster_df[column_mapping.get('title') or column_mapping.get('url')].head(5).tolist()
+            })
+        
+        # Visualization data
+        viz_data = []
+        for _, row in df.iterrows():
+            viz_data.append({
+                'x': row['viz_x'],
+                'y': row['viz_y'],
+                'cluster': int(row['cluster']),
+                'cluster_name': row['cluster_name'],
+                'url': row.get(column_mapping.get('url'), ''),
+                'title': row.get(column_mapping.get('title'), '')
+            })
+        
+        return jsonify({
+            'result_id': result_id,
+            'total_pages': len(df),
+            'num_clusters': k,
+            'clusters': clusters_summary,
+            'visualization': viz_data
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/download/<result_id>')
+def download_results(result_id):
+    """Download clustered results as CSV."""
+    result_path = os.path.join(RESULTS_FOLDER, f"{result_id}.csv")
+    
+    if not os.path.exists(result_path):
+        return jsonify({'error': 'Results not found'}), 404
+    
+    return send_file(
+        result_path,
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'clustered_content_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    )
+
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render."""
+    return jsonify({'status': 'healthy'})
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
