@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Cluster | Semantic Content Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0b;
+            --bg-secondary: #141416;
+            --bg-tertiary: #1c1c1f;
+            --bg-hover: #242428;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #22d3ee;
+            --accent-dim: rgba(34, 211, 238, 0.15);
+            --accent-glow: rgba(34, 211, 238, 0.4);
+            --border: #27272a;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #f87171;
+            --gradient-1: linear-gradient(135deg, #22d3ee 0%, #a855f7 100%);
+            --gradient-2: linear-gradient(135deg, #0a0a0b 0%, #1a1a2e 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            z-index: 1000;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            padding: 3rem 0 4rem;
+            position: relative;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .logo-text {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header h1 {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(34, 211, 238, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-dim);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .upload-area.has-file {
+            border-color: var(--success);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-hint {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .file-info {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .file-info.visible {
+            display: flex;
+        }
+
+        .file-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--accent);
+        }
+
+        .file-stats {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .input-hint {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin-top: 0.375rem;
+        }
+
+        .columns-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            .columns-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--gradient-1);
+            color: var(--bg-primary);
+            width: 100%;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--accent-glow);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .progress-container.visible {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-section.visible {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .results-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .viz-container {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            height: 400px;
+            position: relative;
+        }
+
+        #clusterChart {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .clusters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .cluster-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .cluster-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .cluster-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .cluster-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .cluster-count {
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 0.25rem 0.625rem;
+            border-radius: 999px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+
+        .cluster-samples {
+            list-style: none;
+        }
+
+        .cluster-samples li {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            padding: 0.375rem 0;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cluster-samples li:last-child {
+            border-bottom: none;
+        }
+
+        .error-message {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: var(--error);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="noise-overlay"></div>
+    
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">◎</div>
+                <span class="logo-text">Content Cluster</span>
+            </div>
+            <h1>Transform your Screaming Frog exports into semantic content clusters using AI</h1>
+        </header>
+
+        <main>
+            <div class="card" id="uploadCard">
+                <div class="card-header">
+                    <span class="step-number">01</span>
+                    <h2 class="card-title">Upload Screaming Frog Export</h2>
+                </div>
+                
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <p class="upload-text">Drop your CSV file here or click to browse</p>
+                    <p class="upload-hint">Export from Screaming Frog: Internal → HTML → Export</p>
+                </div>
+                
+                <input type="file" id="fileInput" accept=".csv">
+                
+                <div class="file-info" id="fileInfo">
+                    <span class="file-name" id="fileName"></span>
+                    <span class="file-stats" id="fileStats"></span>
+                </div>
+            </div>
+
+            <div class="card" id="configCard">
+                <div class="card-header">
+                    <span class="step-number">02</span>
+                    <h2 class="card-title">Configure Clustering</h2>
+                </div>
+
+                <div class="form-group">
+                    <label for="apiKey">OpenAI API Key</label>
+                    <input type="password" id="apiKey" placeholder="sk-...">
+                    <p class="input-hint">Your key is only used for this session and never stored</p>
+                </div>
+
+                <div class="columns-grid" id="columnMapping">
+                    <div class="form-group">
+                        <label for="urlColumn">URL Column</label>
+                        <select id="urlColumn"><option value="">Select column...</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="titleColumn">Title Column</label>
+                        <select id="titleColumn"><option value="">Select column...</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="h1Column">H1 Column</label>
+                        <select id="h1Column"><option value="">Select column...</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="metaColumn">Meta Description Column</label>
+                        <select id="metaColumn"><option value="">Select column...</option></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="numClusters">Number of Clusters</label>
+                    <input type="number" id="numClusters" placeholder="Leave blank for auto-detection" min="2" max="50">
+                    <p class="input-hint">Auto-detection uses silhouette scoring to find optimal clusters</p>
+                </div>
+
+                <button class="btn btn-primary" id="clusterBtn" disabled>
+                    <span>Generate Clusters</span>
+                </button>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="progress-text" id="progressText">Initializing...</p>
+                </div>
+
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div class="card">
+                    <div class="results-header">
+                        <div class="results-stats">
+                            <div class="stat">
+                                <div class="stat-value" id="totalPages">0</div>
+                                <div class="stat-label">Pages Analyzed</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value" id="totalClusters">0</div>
+                                <div class="stat-label">Clusters Found</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" id="downloadBtn">
+                            ↓ Download CSV
+                        </button>
+                    </div>
+
+                    <div class="viz-container">
+                        <canvas id="clusterChart"></canvas>
+                    </div>
+
+                    <h3 style="margin-bottom: 1rem; font-size: 1rem;">Cluster Breakdown</h3>
+                    <div class="clusters-grid" id="clustersGrid"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            Built for SEO professionals · Powered by OpenAI embeddings
+        </footer>
+    </div>
+
+    <script>
+        let uploadedFile = null;
+        let fileId = null;
+        let fileName = null;
+        let resultId = null;
+        let clusterChart = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileNameEl = document.getElementById('fileName');
+        const fileStatsEl = document.getElementById('fileStats');
+        const apiKeyInput = document.getElementById('apiKey');
+        const clusterBtn = document.getElementById('clusterBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        const urlColumn = document.getElementById('urlColumn');
+        const titleColumn = document.getElementById('titleColumn');
+        const h1Column = document.getElementById('h1Column');
+        const metaColumn = document.getElementById('metaColumn');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        async function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                showError('Please upload a CSV file');
+                return;
+            }
+
+            uploadedFile = file;
+            uploadArea.classList.add('has-file');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Upload failed');
+                }
+
+                fileId = data.file_id;
+                fileName = data.filename;
+                
+                fileNameEl.textContent = data.filename;
+                fileStatsEl.textContent = `${data.row_count.toLocaleString()} rows`;
+                fileInfo.classList.add('visible');
+
+                populateColumnSelects(data.columns, data.detected_columns);
+                
+                checkFormValidity();
+                hideError();
+
+            } catch (err) {
+                showError(err.message);
+                uploadArea.classList.remove('has-file');
+            }
+        }
+
+        function populateColumnSelects(columns, detected) {
+            const selects = [
+                { el: urlColumn, key: 'url' },
+                { el: titleColumn, key: 'title' },
+                { el: h1Column, key: 'h1' },
+                { el: metaColumn, key: 'meta_description' }
+            ];
+
+            selects.forEach(({ el, key }) => {
+                el.innerHTML = '<option value="">Select column...</option>';
+                columns.forEach(col => {
+                    const option = document.createElement('option');
+                    option.value = col;
+                    option.textContent = col;
+                    if (detected[key] === col) {
+                        option.selected = true;
+                    }
+                    el.appendChild(option);
+                });
+            });
+        }
+
+        [apiKeyInput, urlColumn, titleColumn].forEach(el => {
+            el.addEventListener('change', checkFormValidity);
+            el.addEventListener('input', checkFormValidity);
+        });
+
+        function checkFormValidity() {
+            const valid = fileId && 
+                          apiKeyInput.value.trim().length > 0 && 
+                          urlColumn.value;
+            clusterBtn.disabled = !valid;
+        }
+
+        clusterBtn.addEventListener('click', runClustering);
+
+        async function runClustering() {
+            clusterBtn.disabled = true;
+            progressContainer.classList.add('visible');
+            hideError();
+            resultsSection.classList.remove('visible');
+
+            const steps = [
+                { progress: 10, text: 'Preparing content...' },
+                { progress: 30, text: 'Generating embeddings...' },
+                { progress: 60, text: 'Finding optimal clusters...' },
+                { progress: 80, text: 'Naming clusters with AI...' },
+                { progress: 95, text: 'Creating visualization...' }
+            ];
+
+            let stepIndex = 0;
+            const progressInterval = setInterval(() => {
+                if (stepIndex < steps.length) {
+                    progressFill.style.width = steps[stepIndex].progress + '%';
+                    progressText.textContent = steps[stepIndex].text;
+                    stepIndex++;
+                }
+            }, 2000);
+
+            try {
+                const response = await fetch('/api/cluster', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_id: fileId,
+                        filename: fileName,
+                        api_key: apiKeyInput.value.trim(),
+                        column_mapping: {
+                            url: urlColumn.value,
+                            title: titleColumn.value || null,
+                            h1: h1Column.value || null,
+                            meta_description: metaColumn.value || null
+                        },
+                        num_clusters: document.getElementById('numClusters').value || null
+                    })
+                });
+
+                clearInterval(progressInterval);
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Clustering failed');
+                }
+
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Complete!';
+
+                resultId = data.result_id;
+                displayResults(data);
+
+            } catch (err) {
+                clearInterval(progressInterval);
+                showError(err.message);
+                progressContainer.classList.remove('visible');
+                clusterBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            resultsSection.classList.add('visible');
+            
+            document.getElementById('totalPages').textContent = data.total_pages.toLocaleString();
+            document.getElementById('totalClusters').textContent = data.num_clusters;
+
+            createChart(data.visualization, data.clusters);
+
+            const grid = document.getElementById('clustersGrid');
+            grid.innerHTML = '';
+
+            data.clusters.forEach(cluster => {
+                const card = document.createElement('div');
+                card.className = 'cluster-card';
+                card.innerHTML = `
+                    <div class="cluster-header">
+                        <span class="cluster-name">${cluster.name}</span>
+                        <span class="cluster-count">${cluster.count} pages</span>
+                    </div>
+                    <ul class="cluster-samples">
+                        ${cluster.samples.map(s => `<li title="${s}">${s}</li>`).join('')}
+                    </ul>
+                `;
+                grid.appendChild(card);
+            });
+
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function createChart(vizData, clusters) {
+            const ctx = document.getElementById('clusterChart').getContext('2d');
+            
+            if (clusterChart) {
+                clusterChart.destroy();
+            }
+
+            const colors = [
+                '#22d3ee', '#a855f7', '#4ade80', '#fbbf24', '#f87171',
+                '#60a5fa', '#f472b6', '#34d399', '#fb923c', '#a78bfa',
+                '#38bdf8', '#c084fc', '#86efac', '#fcd34d', '#fca5a5'
+            ];
+
+            const datasets = clusters.map((cluster, i) => {
+                const points = vizData.filter(d => d.cluster === cluster.id);
+                return {
+                    label: cluster.name,
+                    data: points.map(p => ({ x: p.x, y: p.y, title: p.title, url: p.url })),
+                    backgroundColor: colors[i % colors.length] + '80',
+                    borderColor: colors[i % colors.length],
+                    pointRadius: 6,
+                    pointHoverRadius: 10
+                };
+            });
+
+            clusterChart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#a1a1aa',
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    return point.title || point.url || 'Unknown';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            if (resultId) {
+                window.location.href = `/api/download/${resultId}`;
+            }
+        });
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.add('visible');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('visible');
+        }
+    </script>
+</body>
+</html>
